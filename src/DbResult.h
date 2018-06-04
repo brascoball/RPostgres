@@ -25,7 +25,10 @@ public:
   ~DbResult();
 
 public:
-  bool complete();
+  static DbResult* create_and_send_query(const DbConnectionPtr& con, const std::string& sql, bool is_statement);
+
+public:
+  bool complete() const;
   bool active() const;
   int n_rows_fetched();
   int n_rows_affected();
@@ -36,7 +39,7 @@ public:
   List get_column_info();
 
 public:
-  void cleanup_query();
+  void finish_query();
 };
 
 #endif

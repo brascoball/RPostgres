@@ -1,27 +1,28 @@
 # RPostgres
 
-[![Travis-CI Build Status](https://travis-ci.org/r-dbi/RPostgres.png?branch=master)](https://travis-ci.org/r-dbi/RPostgres) [![codecov](https://codecov.io/gh/r-dbi/RPostgres/branch/master/graph/badge.svg)](https://codecov.io/gh/r-dbi/RPostgres)
+[![Travis-CI Build Status](https://travis-ci.org/r-dbi/RPostgres.png?branch=master)](https://travis-ci.org/r-dbi/RPostgres) [![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/github/r-dbi/RPostgres?branch=master&svg=true)](https://ci.appveyor.com/project/r-dbi/RPostgres) [![codecov](https://codecov.io/gh/r-dbi/RPostgres/branch/master/graph/badge.svg)](https://codecov.io/gh/r-dbi/RPostgres)
 
-RPostgres is an DBI-compliant interface to the postgres database. It's a ground-up rewrite using C++ and Rcpp. Compared to PostgresSQL, it:
+RPostgres is an DBI-compliant interface to the postgres database. It's a ground-up rewrite using C++ and Rcpp. Compared to RPostgresSQL, it:
 
 * Has full support for parameterised queries via `dbSendQuery()`, and `dbBind()`.
 
 * Automatically cleans up open connections and result sets, ensuring that you
   don't need to worry about leaking connections or memory.
 
-* Is a little faster, saving ~5 ms per query. (For refernce, it takes around 5ms
+* Is a little faster, saving ~5 ms per query. (For reference, it takes around 5ms
   to retrive a 1000 x 25 result set from a local database, so this is 
   decent speed up for smaller queries.)
 
 * A simplified build process that relies on system libpq.
 
 ## Installation
-
-RPostgres isn't available from CRAN yet, but you can get it from github with:
-
 ```R
+# Install the latest RPostgres release from CRAN:
+install.packages("RPostgres")
+
+# Or the the development version from GitHub:
 # install.packages("remotes")
-remotes::install_github("rstats-db/RPostgres")
+remotes::install_github("r-dbi/RPostgres")
 ```
 
 ## Basic usage

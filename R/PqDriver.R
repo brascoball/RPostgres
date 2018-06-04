@@ -1,11 +1,11 @@
 #' Postgres driver
 #'
-#' This driver never needs to be unloaded and hence \code{dbUnload()} is a
+#' This driver never needs to be unloaded and hence `dbUnload()` is a
 #' null-op.
 #'
 #' @export
 #' @useDynLib RPostgres, .registration = TRUE
-#' @importFrom Rcpp evalCpp
+#' @importFrom Rcpp sourceCpp
 #' @import methods DBI
 #' @examples
 #' library(DBI)

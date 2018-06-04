@@ -43,42 +43,48 @@ setMethod("dbGetRowsAffected", "PqResult", function(res, ...) {
 #' @rdname PqResult-class
 #' @export
 setMethod("dbColumnInfo", "PqResult", function(res, ...) {
-  result_column_info(res@ptr)
+  rci <- result_column_info(res@ptr)
+  rci <- cbind(rci, .typname = type_lookup(rci[[".oid"]], res@conn), stringsAsFactors = FALSE)
+  rci$name <- tidy_names(rci$name)
+  rci
 })
 
 #' Execute a SQL statement on a database connection
 #'
-#' To retrieve results a chunk at a time, use \code{dbSendQuery},
-#' \code{dbFetch}, then \code{ClearResult}. Alternatively, if you want all the
-#' results (and they'll fit in memory) use \code{dbGetQuery} which sends,
+#' To retrieve results a chunk at a time, use `dbSendQuery()`,
+#' `dbFetch()`, then `dbClearResult()`. Alternatively, if you want all the
+#' results (and they'll fit in memory) use `dbGetQuery()` which sends,
 #' fetches and clears for you.
 #'
-#' @param conn A \code{\linkS4class{PqConnection}} created by \code{dbConnect}.
-#' @param statement An SQL string to execture
+#' @param conn A [PqConnection-class] created by [dbConnect()].
+#' @param statement An SQL string to execute
 #' @param params A list of query parameters to be substituted into
 #'   a parameterised query. Query parameters are sent as strings, and the
 #'   correct type is imputed by PostgreSQL. If this fails, you can manually
-#'   cast the parameter with e.g. \code{"$1::bigint"}.
+#'   cast the parameter with e.g. `"$1::bigint"`.
 #' @param ... Another arguments needed for compatibility with generic (
 #'   currently ignored).
 #' @examples
+#' # For running the examples on systems without PostgreSQL connection:
+#' run <- postgresHasDefault()
+#'
 #' library(DBI)
-#' db <- dbConnect(RPostgres::Postgres())
-#' dbWriteTable(db, "usarrests", datasets::USArrests, temporary = TRUE)
+#' if (run) db <- dbConnect(RPostgres::Postgres())
+#' if (run) dbWriteTable(db, "usarrests", datasets::USArrests, temporary = TRUE)
 #'
 #' # Run query to get results as dataframe
-#' dbGetQuery(db, "SELECT * FROM usarrests LIMIT 3")
+#' if (run) dbGetQuery(db, "SELECT * FROM usarrests LIMIT 3")
 #'
 #' # Send query to pull requests in batches
-#' res <- dbSendQuery(db, "SELECT * FROM usarrests")
-#' dbFetch(res, n = 2)
-#' dbFetch(res, n = 2)
-#' dbHasCompleted(res)
-#' dbClearResult(res)
+#' if (run) res <- dbSendQuery(db, "SELECT * FROM usarrests")
+#' if (run) dbFetch(res, n = 2)
+#' if (run) dbFetch(res, n = 2)
+#' if (run) dbHasCompleted(res)
+#' if (run) dbClearResult(res)
 #'
-#' dbRemoveTable(db, "usarrests")
+#' if (run) dbRemoveTable(db, "usarrests")
 #'
-#' dbDisconnect(db)
+#' if (run) dbDisconnect(db)
 #' @name postgres-query
 NULL
 
@@ -101,8 +107,8 @@ setMethod("dbSendQuery", c("PqConnection", "character"), function(conn, statemen
   rs
 })
 
-#' @param res Code a \linkS4class{PqResult} produced by
-#'   \code{\link[DBI]{dbSendQuery}}.
+#' @param res Code a [PqResult-class] produced by
+#'   [DBI::dbSendQuery()].
 #' @param n Number of rows to return. If less than zero returns all rows.
 #' @inheritParams DBI::sqlRownamesToColumn
 #' @export
@@ -113,19 +119,50 @@ setMethod("dbFetch", "PqResult", function(res, n = -1, ..., row.names = FALSE) {
   if (is.infinite(n)) n <- -1
   if (trunc(n) != n) stopc("n must be a whole number")
   ret <- sqlColumnToRownames(result_fetch(res@ptr, n = n), row.names)
-  convert_bigint(ret, res@bigint)
+  ret <- convert_bigint(ret, res@bigint)
+  ret <- finalize_types(ret, res@conn)
+  set_tidy_names(ret)
 })
 
-convert_bigint <- function(ret, bigint) {
-  if (bigint == "integer64") return(ret)
-  fun <- switch(bigint,
+convert_bigint <- function(df, bigint) {
+  if (bigint == "integer64") return(df)
+  is_int64 <- which(vlapply(df, inherits, "integer64"))
+  if (length(is_int64) == 0) return(df)
+
+  as_bigint <- switch(bigint,
     integer = as.integer,
     numeric = as.numeric,
     character = as.character
   )
-  is_int64 <- which(vlapply(ret, inherits, "integer64"))
-  ret[is_int64] <- lapply(ret[is_int64], fun)
+
+  df[is_int64] <- suppressWarnings(lapply(df[is_int64], as_bigint))
+  df
+}
+
+finalize_types <- function(ret, conn) {
+  known <- attr(ret, "known")
+  is_unknown <- which(!known)
+
+  if (length(is_unknown) > 0) {
+    oids <- attr(ret, "oids")
+    typnames <- type_lookup(oids[is_unknown], conn)
+    typname_classes <- paste0("pq_", typnames)
+    ret[is_unknown] <- Map(set_class, ret[is_unknown], typname_classes)
+  }
+
+  attr(ret, "oids") <- NULL
+  attr(ret, "known") <- NULL
   ret
+}
+
+set_class <- function(x, subclass = NULL) {
+  class(x) <- c(subclass)
+  x
+}
+
+type_lookup <- function(x, conn) {
+  typnames <- conn@typnames
+  typnames$typname[match(x, typnames$oid)]
 }
 
 #' @rdname postgres-query

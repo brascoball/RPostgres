@@ -1,87 +1,46 @@
-## RPostgres 0.1-11 (2017-12-01)
+# RPostgres 1.1.1 (2018-05-05)
 
-- Improved documentation of the `dbname` argument to `dbConnect()`, it now specifically mentions that connection strings cannot be used (#135).
-- `dbConnect()` gains a `bigint` argument that optionally coerces 64-bit integer values to `integer`, `numeric` or `character`. By default, the `bit64::integer64` data type is used (#141).
-- Use `blob_cast` tweak to pass blob tests.
-- Adapt data fetching logic from RSQLite, for multi-row binding (#100).
-
-
-## RPostgres 0.1-10 (2017-11-30)
-
-- `dbBind()` checks that all parameters have the same length.
-- Strings and other data types are now passed correctly with prepared statements (#140).
-- Improve repeated binding and querying table information (#58, #59, #87).
-- Better error reporting.
-- Refactorings.
+- Add support for `bigint` argument to `dbConnect()`, supported values are `"integer64"`, `"integer"`, `"numeric"` and `"character"`. Large integers are returned as values of that type (r-dbi/DBItest#133).
+- Data frames resulting from a query always have unique non-empty column names (r-dbi/DBItest#137).
+- New arguments `temporary` and `fail_if_missing` (default: `TRUE`) to `dbRemoveTable()` (r-dbi/DBI#141, r-dbi/DBI#197).
+- Using `dbCreateTable()` and `dbAppendTable()` internally (r-dbi/DBI#74).
+- The `field.types` argument to `dbWriteTable()` now must be named.
+- Using `current_schemas(true)` also in `dbListObjects()` and `dbListTables()`, for consistency with `dbListFields()`. Objects from the `pg_catalog` schema are still excluded.
+- `dbListFields()` doesn't list fields from tables found in the `pg_catalog` schema.
+- The `dbListFields()` method now works correctly if the `name` argument is a quoted identifier or of class `Id`, and throws an error if the table is not found (r-dbi/DBI#75).
+- Implement `format()` method for `SqliteConnection` (r-dbi/DBI#163).
+- Reexporting `Id()`, `DBI::dbIsReadOnly()` and `DBI::dbCanConnect()`.
+- Now imports DBI 1.0.0.
 
 
-## RPostgres 0.1-9 (2017-11-23)
+# RPostgres 1.1.0 (2018-04-04)
 
-- Improve DBI compliance for `dbBind()` and others, in particular for the `BYTEA` data type, and for 64-bit integer support and transactions (#51, #64, #66, #68, #98, #101).
-
-
-## RPostgres 0.1-8 (2017-11-09)
-
-- Improve DBI compatibility (#24, #41, #52, #53, #61, #62, #70, #79, #104, #121).
-- Define `timegm` for Windows and add missing function (#136).
-- The time zone is set by executing `SET TIMEZONE='UTC'` instead of setting an environment variable (#136).
-
-
-## RPostgres 0.1-7 (2017-11-06)
-
-- All tests pass again.
-- Default to `row.names = FALSE`.
-- Fix escaping of `NA` values and character data (@jimhester).
-- Consistent coding style.
-- Fix `dbDataType()` for data frames (#133, @etiennebr).
-- Add support for dates and times (#111, @thrasibule).
-- `dbWriteTable()` gains `field.types` argument (#45, @robertzk).
-- Implement `dbListFields()` (#41, @thrasibule).
-- Fix compiler warnings.
+- Breaking change: `dbGetException()` is no longer reexported from DBI.
+- Make "typname" information available after `dbFetch()` and `dbGetQuery()`. Values of unknown type are returned as character vector of class `"pq_xxx"`, where `"xxx"` is the "typname" returned from PostgreSQL. In particular, `JSON` and `JSONB` values now have class `"pq_json"` and `"pq_jsonb"`, respectively. The return value of `dbColumnInfo()` gains new columns `".oid"` (`integer`), `". known"` (`logical`) and `".typname"` (`character`) (#114, @etiennebr).
+- Values of class `"integer64"` are now supported for `dbWriteTable()` and `dbBind()` (#178).
+- Schema support, as specified by DBI: `dbListObjects()`, `dbUnquoteIdentifier()` and `Id()`.
+- Names in the `x` argument to `dbQuoteIdentifier()` are preserved in the output (r-lib/DBI#173).
+- All generics defined in DBI (e.g., `dbGetQuery()`) are now exported, even if the package doesn't provide a custom implementation (#168).
+- Replace non-portable `timegm()` with private implementation.
+- Correct reference to RPostgreSQL package (#165, @ClaytonJY).
 
 
-## RPostgres 0.1-6 (2017-08-31)
+# RPostgres 1.0-4 (2017-12-20)
 
-- Fix tests (#126, @thrasibule).
-- Avoid redundant quoting of strings (#125).
-- Add `PGTypes` (#124, @thrasibule).
+- Only call `PQcancel()` if the query hasn't completed, fixes transactions on Amazon RedShift (#159, @mmuurr).
+- Fix installation on MacOS.
+- Check libpq version in configure script (need at least 9.0).
+- Fix UBSAN warning: reference binding to null pointer (#156).
+- Fix rchk warning: PROTECT internal temporary SEXP objects (#157).
+- Fix severe memory leak when fetching results (#154).
 
+# RPostgres 1.0-3 (2017-12-01)
 
-## RPostgres 0.1-5 (2017-08-07)
+Initial release, compliant to the DBI specification.
 
-- Update Rcpp registration code.
-- `dbConnect()` now accepts arbitrary connection parameters in the `...` argument (#83, @thrasibule).
-- Handles NA values by converting them to NULL (#82, @thrasibule).
-- Handle string quoting and missing values in strings (#89, @jimhester).
-- `PKG_CFLAGS` and `PKG_LIBS` are now being set when using `pg_config` for `includedir` and `libdir` (#119, @usman-r).
-- Use `BYTEA` instead of `BLOB` for PostgreSQL 9.5 support.
-
-
-## RPostgres 0.1-4 (2016-12-29)
-
-- Added `pg_config` support, factored `CFLAGS` and `LIBS` as separate steps (#81, @mmuurr).
-- Fix roundtrip of `logical` values (#108, @thrasibule).
-- Fix documentation warning (#109, @thrasibule).
-
-
-## RPostgres 0.1-3 (2016-12-28)
-
-- Ignore various test.
-
-
-# RPostgres 0.1-2 (2016-06-08)
-
-- Use new `sqlRownamesToColumn()` and `sqlColumnToRownames()` (rstats-db/DBI#91).
-- Use container-based builds on Travis.
-- Upgrade bundled `libpq` to 9.5.2 for Windows builds.
-
-
-# RPostgres 0.1-1 (2016-03-24)
-
-- Use DBItest for testing (#56).
-
-
-RPostgres 0.1 (2016-03-24)
-===
-
-- Rcpp rewrite, initial version
+- Test almost all test cases of the DBI specification.
+- Fully support parametrized queries.
+- Spec-compliant transactions.
+- 64-bit integers are now supported through the `bit64` package. This also means that numeric literals (as in `SELECT 1`) are returned as 64-bit integers. The `bigint` argument to `dbConnect()` allows overriding the data type on a per-connection basis.
+- Correct handling of DATETIME and TIME columns.
+- New default `row.names = FALSE`.

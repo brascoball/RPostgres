@@ -5,7 +5,7 @@
 
 
 DbResult::DbResult(const DbConnectionPtr& pConn, const std::string& sql) :
-pConn_(pConn)
+  pConn_(pConn)
 {
   pConn->check_connection();
   pConn->set_current_result(this);
@@ -25,6 +25,11 @@ DbResult::~DbResult() {
       pConn_->set_current_result(NULL);
     }
   } catch (...) {}
+}
+
+DbResult* DbResult::create_and_send_query(const DbConnectionPtr& con, const std::string& sql, bool is_statement) {
+  (void)is_statement;
+  return new DbResult(con, sql);
 }
 
 void DbResult::bind(const List& params) {
@@ -50,14 +55,14 @@ int DbResult::n_rows_fetched() {
   return impl->n_rows_fetched();
 }
 
-bool DbResult::complete() {
-  return impl->complete();
+bool DbResult::complete() const {
+  return (impl == NULL) || impl->complete();
 }
 
 List DbResult::get_column_info() {
   return impl->get_column_info();
 }
 
-void DbResult::cleanup_query() {
-  pConn_->cleanup_query();
+void DbResult::finish_query() {
+  pConn_->finish_query();
 }

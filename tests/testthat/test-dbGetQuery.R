@@ -1,9 +1,9 @@
 context("dbGetQuery")
 
 test_that("special characters work", {
-  angstrom <- enc2utf8("\\u00e5")
+  con <- postgresDefault()
 
-  con <- dbConnect(RPostgres::Postgres())
+  angstrom <- enc2utf8("\\u00e5")
 
   dbExecute(con, "CREATE TEMPORARY TABLE test1 (x TEXT)")
   dbExecute(con, "INSERT INTO test1 VALUES ('\\u00e5')")
@@ -16,8 +16,10 @@ test_that("special characters work", {
 
 # Not generic enough for DBItest
 test_that("JSONB format is recognized", {
+  con <- postgresDefault()
 
-  con <- dbConnect(RPostgres::Postgres())
+  n_json <- dbGetQuery(con, "SELECT count(*) FROM pg_type WHERE typname = 'jsonb' AND typtype = 'b'")[[1]]
+  if (as.integer(n_json) == 0) skip("No jsonb type installed")
 
   jsonb <- '{\"name\": \"mike\"}'
 
@@ -25,18 +27,16 @@ test_that("JSONB format is recognized", {
   dbExecute(con, paste0("INSERT INTO test2(data) values ('", jsonb, "');"))
 
   expect_warning(
-    expect_equal(dbGetQuery(con, "SELECT * FROM test2")$data, jsonb),
+    expect_equal(dbGetQuery(con, "SELECT * FROM test2")$data, structure(jsonb, class = "pq_jsonb")),
     NA
   )
 
   dbDisconnect(con)
-
 })
 
 
 test_that("uuid format is recognized", {
-
-  con <- dbConnect(RPostgres::Postgres())
+  con <- postgresDefault()
 
   dbExecute(con, "CREATE TEMPORARY TABLE fuutab
     (
@@ -54,5 +54,4 @@ test_that("uuid format is recognized", {
   )
 
   dbDisconnect(con)
-
 })

@@ -1,42 +1,48 @@
 #' Convenience functions for reading/writing DBMS tables
 #'
-#' @param conn a \code{\linkS4class{PqConnection}} object, produced by
-#'   \code{\link[DBI]{dbConnect}}
+#' @description [dbWriteTable()] executes several SQL statements that
+#' create/overwrite a table and fill it with values.
+#' \pkg{RPostgres} does not use parameterised queries to insert rows because
+#' benchmarks revealed that this was considerably slower than using a single
+#' SQL string.
+#'
+#' @param conn a [PqConnection-class] object, produced by
+#'   [DBI::dbConnect()]
 #' @param name a character string specifying a table name. Names will be
-#'   automatically quoted so you can use any sequence of characaters, not
+#'   automatically quoted so you can use any sequence of characters, not
 #'   just any valid bare table name.
 #' @param value A data.frame to write to the database.
 #' @inheritParams DBI::sqlCreateTable
 #' @param overwrite a logical specifying whether to overwrite an existing table
-#'   or not. Its default is \code{FALSE}.
+#'   or not. Its default is `FALSE`.
 #' @param append a logical specifying whether to append to an existing table
-#'   in the DBMS. Its default is \code{FALSE}.
+#'   in the DBMS. Its default is `FALSE`.
 #' @param field.types character vector of named SQL field types where
 #'   the names are the names of new table's columns. If missing, types inferred
-#'   with \code{\link[DBI]{dbDataType}}).
-#' @param copy If \code{TRUE}, serializes the data frame to a single string
-#'   and uses \code{COPY name FROM stdin}. This is fast, but not supported by
-#'   all postgres servers (e.g. Amazon's redshift). If \code{FALSE}, generates
+#'   with [DBI::dbDataType()]).
+#' @param copy If `TRUE`, serializes the data frame to a single string
+#'   and uses `COPY name FROM stdin`. This is fast, but not supported by
+#'   all postgres servers (e.g. Amazon's redshift). If `FALSE`, generates
 #'   a single SQL string. This is slower, but always supported.
 #'
-#'   RPostgres does not use parameterised queries to insert rows because
-#'   benchmarks revealed that this was considerably slower than using a single
-#'   SQL string.
 #' @examples
-#' library(DBI)
-#' con <- dbConnect(RPostgres::Postgres())
-#' dbListTables(con)
-#' dbWriteTable(con, "mtcars", mtcars, temporary = TRUE)
-#' dbReadTable(con, "mtcars")
+#' # For running the examples on systems without PostgreSQL connection:
+#' run <- postgresHasDefault()
 #'
-#' dbListTables(con)
-#' dbExistsTable(con, "mtcars")
+#' library(DBI)
+#' if (run) con <- dbConnect(RPostgres::Postgres())
+#' if (run) dbListTables(con)
+#' if (run) dbWriteTable(con, "mtcars", mtcars, temporary = TRUE)
+#' if (run) dbReadTable(con, "mtcars")
+#'
+#' if (run) dbListTables(con)
+#' if (run) dbExistsTable(con, "mtcars")
 #'
 #' # A zero row data frame just creates a table definition.
-#' dbWriteTable(con, "mtcars2", mtcars[0, ], temporary = TRUE)
-#' dbReadTable(con, "mtcars2")
+#' if (run) dbWriteTable(con, "mtcars2", mtcars[0, ], temporary = TRUE)
+#' if (run) dbReadTable(con, "mtcars2")
 #'
-#' dbDisconnect(con)
+#' if (run) dbDisconnect(con)
 #' @name postgres-tables
 NULL
 
@@ -62,8 +68,11 @@ setMethod("dbWriteTable", c("PqConnection", "character", "data.frame"),
     if (overwrite && append) {
       stopc("overwrite and append cannot both be TRUE")
     }
+    if (!is.null(field.types) && !(is.character(field.types) && !is.null(names(field.types)) && !anyDuplicated(names(field.types)))) {
+      stopc("`field.types` must be a named character vector with unique names, or NULL")
+    }
     if (append && !is.null(field.types)) {
-      stopc("Cannot specify field.types with append = TRUE")
+      stopc("Cannot specify `field.types` with `append = TRUE`")
     }
 
     found <- dbExistsTable(conn, name)
@@ -75,19 +84,31 @@ setMethod("dbWriteTable", c("PqConnection", "character", "data.frame"),
       dbRemoveTable(conn, name)
     }
 
+    value <- sqlRownamesToColumn(value, row.names)
+
     if (!found || overwrite) {
-      if (!is.null(field.types)) {
-        types <- structure(field.types, .Names = colnames(value))
+      if (is.null(field.types)) {
+        combined_field_types <- lapply(value, dbDataType, dbObj = conn)
       } else {
-        types <- value
+        combined_field_types <- rep("", length(value))
+        names(combined_field_types) <- names(value)
+        field_types_idx <- match(names(field.types), names(combined_field_types))
+        stopifnot(!any(is.na(field_types_idx)))
+        combined_field_types[field_types_idx] <- field.types
+        values_idx <- setdiff(seq_along(value), field_types_idx)
+        combined_field_types[values_idx] <- lapply(value[values_idx], dbDataType, dbObj = conn)
       }
-      sql <- sqlCreateTable(conn, name, if (is.null(field.types)) value else field.types,
-        row.names = row.names, temporary = temporary)
-      dbExecute(conn, sql)
+
+      dbCreateTable(
+        conn = conn,
+        name = name,
+        fields = combined_field_types,
+        temporary = temporary
+      )
     }
 
     if (nrow(value) > 0) {
-      value <- sqlData(conn, value, row.names = row.names, copy = copy)
+      value <- sqlData(conn, value, row.names = FALSE, copy = copy)
       if (!copy) {
         sql <- sqlAppendTable(conn, name, value)
         dbExecute(conn, sql)
@@ -109,8 +130,9 @@ setMethod("dbWriteTable", c("PqConnection", "character", "data.frame"),
 
 #' @export
 #' @inheritParams DBI::sqlRownamesToColumn
+#' @param ... Ignored.
 #' @rdname postgres-tables
-setMethod("sqlData", "PqConnection", function(con, value, row.names = FALSE, copy = TRUE) {
+setMethod("sqlData", "PqConnection", function(con, value, row.names = FALSE, ...) {
   if (is.null(row.names)) row.names <- FALSE
   value <- sqlRownamesToColumn(value, row.names)
 
@@ -160,6 +182,27 @@ format_keep_na <- function(x, ...) {
   ret
 }
 
+#' @description [dbAppendTable()] is overridden because \pkg{RPostgres}
+#' uses placeholders of the form `$1`, `$2` etc. instead of `?`.
+#' @rdname postgres-tables
+#' @export
+setMethod("dbAppendTable", signature("DBIConnection"),
+  function(conn, name, value, ..., row.names = NULL) {
+    stopifnot(is.null(row.names))
+
+    query <- sqlAppendTableTemplate(
+      con = conn,
+      table = name,
+      values = value,
+      row.names = row.names,
+      prefix = "$",
+      pattern = "1",
+      ...
+    )
+    values <- sqlRownamesToColumn(value, row.names)
+    dbExecute(conn, query, param = unname(as.list(value)))
+  }
+)
 
 #' @export
 #' @param check.names If `TRUE`, the default, column names will be
@@ -194,7 +237,7 @@ setMethod("dbListTables", "PqConnection", function(conn, ...) {
   query <- paste0(
     "SELECT table_name FROM INFORMATION_SCHEMA.tables ",
     "WHERE ",
-    "(table_schema = ANY(current_schemas(false)) OR table_type = 'LOCAL TEMPORARY')"
+    "(table_schema = ANY(current_schemas(true))) AND (table_schema <> 'pg_catalog')"
   )
   dbGetQuery(conn, query)[[1]]
 })
@@ -204,25 +247,82 @@ setMethod("dbListTables", "PqConnection", function(conn, ...) {
 setMethod("dbExistsTable", c("PqConnection", "character"), function(conn, name, ...) {
   stopifnot(length(name) == 1L)
   name <- dbQuoteIdentifier(conn, name)
-  # Convert to plain string
-  name <- paste0(gsub('^"|"$', '', name))
-  name <- dbQuoteString(conn, name)
 
-  query <- paste0(
-    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.tables WHERE table_name = ",
-    name, " ",
-    "AND ",
-    "(table_schema = ANY(current_schemas(false)) OR table_type = 'LOCAL TEMPORARY')"
-  )
-  dbGetQuery(conn, query)[[1]] >= 1
+  # Convert to identifier
+  id <- dbUnquoteIdentifier(conn, name)[[1]]@name
+  exists_table(conn, id)
 })
 
 #' @export
 #' @rdname postgres-tables
+setMethod("dbExistsTable", c("PqConnection", "Id"), function(conn, name, ...) {
+  exists_table(conn, id = name@name)
+})
+
+exists_table <- function(conn, id) {
+  query <- paste0(
+    "SELECT COUNT(*) FROM ",
+    find_table(conn, id)
+  )
+
+  dbGetQuery(conn, query)[[1]] >= 1
+}
+
+find_table <- function(conn, id, inf_table = "tables", only_first = FALSE) {
+  if ("schema" %in% names(id)) {
+    query <- paste0(
+      "(SELECT 1 AS nr, ",
+      dbQuoteString(conn, id[["schema"]]), "::varchar",
+      " AS table_schema) t"
+    )
+  } else {
+    # https://stackoverflow.com/a/8767450/946850
+    query <- paste0(
+      "(SELECT nr, schemas[nr] AS table_schema FROM ",
+      "(SELECT *, generate_subscripts(schemas, 1) AS nr FROM ",
+      "(SELECT current_schemas(true) AS schemas) ",
+      "t) ",
+      "tt WHERE schemas[nr] <> 'pg_catalog') ",
+      "ttt"
+    )
+  }
+
+  table <- dbQuoteString(conn, id[["table"]])
+  query <- paste0(
+    query, " ",
+    "INNER JOIN INFORMATION_SCHEMA.", inf_table, " USING (table_schema) ",
+    "WHERE table_name = ", table
+  )
+
+  if (only_first) {
+    # https://stackoverflow.com/a/31814584/946850
+    query <- paste0(
+      "(SELECT *, rank() OVER (ORDER BY nr) AS rnr ",
+      "FROM ", query,
+      ") tttt WHERE rnr = 1"
+    )
+  }
+
+  query
+}
+
+#' @export
+#' @rdname postgres-tables
+#' @param temporary If `TRUE`, only temporary tables are considered.
+#' @param fail_if_missing If `FALSE`, `dbRemoveTable()` succeeds if the
+#'   table doesn't exist.
 setMethod("dbRemoveTable", c("PqConnection", "character"),
-  function(conn, name, ...) {
+  function(conn, name, ..., temporary = FALSE, fail_if_missing = TRUE) {
     name <- dbQuoteIdentifier(conn, name)
-    dbExecute(conn, paste("DROP TABLE ", name))
+    if (fail_if_missing) {
+      extra <- ""
+    } else {
+      extra <- "IF EXISTS "
+    }
+    if (temporary) {
+      extra <- paste0(extra, "pg_temp.")
+    }
+    dbExecute(conn, paste0("DROP TABLE ", extra, name))
     invisible(TRUE)
   }
 )
@@ -231,8 +331,75 @@ setMethod("dbRemoveTable", c("PqConnection", "character"),
 #' @rdname postgres-tables
 setMethod("dbListFields", c("PqConnection", "character"),
   function(conn, name, ...) {
-    name <- dbQuoteString(conn, name)
-    dbGetQuery(conn, paste("SELECT column_name FROM information_schema.columns
-WHERE table_name=", name))$column_name
+    quoted <- dbQuoteIdentifier(conn, name)
+    id <- dbUnquoteIdentifier(conn, quoted)[[1]]@name
+
+    list_fields(conn, id)
   }
 )
+
+#' @export
+#' @rdname postgres-tables
+setMethod("dbListFields", c("PqConnection", "Id"),
+  function(conn, name, ...) {
+    list_fields(conn, name@name)
+  }
+)
+
+list_fields <- function(conn, id) {
+  query <- find_table(conn, id, "columns", only_first = TRUE)
+  query <- paste0(
+    "SELECT column_name FROM ",
+    query, " ",
+    "ORDER BY ordinal_position"
+  )
+  fields <- dbGetQuery(conn, query)[[1]]
+  if (length(fields) == 0) {
+    stop("Table ", dbQuoteIdentifier(conn, id), " not found.", call. = FALSE)
+  }
+  fields
+}
+
+#' @export
+#' @inheritParams DBI::dbListObjects
+#' @rdname postgres-tables
+setMethod("dbListObjects", c("PqConnection", "ANY"), function(conn, prefix = NULL, ...) {
+  query <- NULL
+  if (is.null(prefix)) {
+    query <- paste0(
+      "SELECT NULL AS schema, table_name AS table FROM INFORMATION_SCHEMA.tables\n",
+      "WHERE ",
+      "(table_schema = ANY(current_schemas(true))) AND (table_schema <> 'pg_catalog')\n",
+      "UNION ALL\n",
+      "SELECT DISTINCT table_schema AS schema, NULL AS table FROM INFORMATION_SCHEMA.tables"
+    )
+  } else {
+    unquoted <- dbUnquoteIdentifier(conn, prefix)
+    is_prefix <- vlapply(unquoted, function(x) { "schema" %in% names(x@name) && !("table" %in% names(x@name)) })
+    schemas <- vcapply(unquoted[is_prefix], function(x) x@name[["schema"]])
+    if (length(schemas) > 0) {
+      schema_strings <- dbQuoteString(conn, schemas)
+      query <- paste0(
+        "SELECT table_schema AS schema, table_name AS table FROM INFORMATION_SCHEMA.tables\n",
+        "WHERE ",
+        "(table_schema IN (", paste(schema_strings, collapse = ", "), "))"
+      )
+    }
+  }
+
+  if (is.null(query)) {
+    res <- data.frame(schema = character(), table = character(), stringsAsFactors = FALSE)
+  } else {
+    res <- dbGetQuery(conn, query)
+  }
+
+  is_prefix <- !is.na(res$schema) & is.na(res$table)
+  tables <- Map(res$schema, res$table, f = as_table)
+
+  ret <- data.frame(
+    table = I(unname(tables)),
+    is_prefix = is_prefix,
+    stringsAsFactors = FALSE
+  )
+  ret
+})

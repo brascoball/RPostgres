@@ -7,6 +7,9 @@
 \alias{dbQuoteString,PqConnection,SQL-method}
 \alias{dbQuoteIdentifier,PqConnection,character-method}
 \alias{dbQuoteIdentifier,PqConnection,SQL-method}
+\alias{dbQuoteIdentifier,PqConnection,Id-method}
+\alias{dbUnquoteIdentifier,PqConnection,SQL-method}
+\alias{dbQuoteLiteral}
 \alias{dbQuoteLiteral,PqConnection,logical-method}
 \alias{dbQuoteLiteral,PqConnection,integer-method}
 \alias{dbQuoteLiteral,PqConnection,numeric-method}
@@ -16,7 +19,7 @@
 \alias{dbQuoteLiteral,PqConnection,difftime-method}
 \alias{dbQuoteLiteral,PqConnection,list-method}
 \alias{dbQuoteLiteral,PqConnection,blob-method}
-\title{Quote postgres strings and identifiers.}
+\title{Quote postgres strings, identifiers, and literals}
 \usage{
 \S4method{dbQuoteString}{PqConnection,character}(conn, x, ...)
 
@@ -25,6 +28,12 @@
 \S4method{dbQuoteIdentifier}{PqConnection,character}(conn, x, ...)
 
 \S4method{dbQuoteIdentifier}{PqConnection,SQL}(conn, x, ...)
+
+\S4method{dbQuoteIdentifier}{PqConnection,Id}(conn, x, ...)
+
+\S4method{dbUnquoteIdentifier}{PqConnection,SQL}(conn, x, ...)
+
+dbQuoteLiteral(conn, x, ...)
 
 \S4method{dbQuoteLiteral}{PqConnection,logical}(conn, x, ...)
 
@@ -52,13 +61,18 @@
 \item{...}{Other arguments needed for compatibility with generic}
 }
 \description{
-Quote postgres strings and identifiers.
+If an object of class \link{Id} is used for \code{dbQuoteIdentifier()}, it needs
+at most one \code{table} component and at most one \code{schema} component.
 }
 \examples{
+# For running the examples on systems without PostgreSQL connection:
+run <- postgresHasDefault()
+
 library(DBI)
-con <- dbConnect(RPostgres::Postgres())
+if (run) con <- dbConnect(RPostgres::Postgres())
 
 x <- c("a", "b c", "d'e", "\\\\f")
-dbQuoteString(con, x)
-dbQuoteIdentifier(con, x)
+if (run) dbQuoteString(con, x)
+if (run) dbQuoteIdentifier(con, x)
+if (run) dbDisconnect(con)
 }

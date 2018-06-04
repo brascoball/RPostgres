@@ -4,12 +4,21 @@
 \name{RPostgres-package}
 \alias{RPostgres}
 \alias{RPostgres-package}
-\title{RPostgres: Experimental Rcpp Interface to PostgreSQL}
+\title{RPostgres: 'Rcpp' Interface to 'PostgreSQL'}
 \description{
-DBI-compatible Rcpp-backed interface to PostgreSQL.
+Fully 'DBI'-compliant 'Rcpp'-backed interface to 'PostgreSQL' <https://www.postgresql.org/>,
+an open-source relational database.
+}
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/r-dbi/RPostgres}
+  \item Report bugs at \url{https://github.com/r-dbi/RPostgres/issues}
+}
+
 }
 \author{
-\strong{Maintainer}: Kirill Müller \email{krlmlr+r@mailbox.org}
+\strong{Maintainer}: Kirill Müller \email{krlmlr+r@mailbox.org} (0000-0002-1416-3412)
 
 Authors:
 \itemize{
@@ -20,9 +29,8 @@ Authors:
 Other contributors:
 \itemize{
   \item RStudio [copyright holder]
-  \item R Consortium [copyright holder]
+  \item R Consortium [funder]
   \item Tomoaki Nishiyama (Code for encoding vectors into strings derived from RPostgreSQL) [contributor]
-  \item Kungliga Tekniska Högskolan (Source code for timegm) [contributor]
 }
 
 }
