@@ -170,7 +170,7 @@ setMethod("dbConnect", "PqDriver",
     }
 
     con <- new("PqConnection", ptr = ptr, bigint = bigint, typnames = data.frame())
-    dbExecute(con, "SET TIMEZONE='UTC'")
+    # dbExecute(con, "SET TIMEZONE='UTC'")
     con@typnames <- dbGetQuery(con, "SELECT oid, typname FROM pg_type")
 
     con
